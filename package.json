@@ -4,11 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "dev": "tsc -w"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@types/webmidi": "^2.0.2"
+    "@types/webmidi": "^2.0.2",
+    "tsc": "^1.20150623.0"
   }
 }
