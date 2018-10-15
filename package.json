@@ -12,6 +12,6 @@
   "license": "ISC",
   "dependencies": {
     "@types/webmidi": "^2.0.2",
-    "tsc": "^1.20150623.0"
+    "typescript": "^3.1.3"
   }
 }
