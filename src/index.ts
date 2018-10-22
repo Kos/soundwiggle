@@ -89,6 +89,7 @@ class Square implements Instrument {
   output: AudioNode;
   voiceMap: Map<Note, Voice>;
   params: Params;
+  lfo: OscillatorNode;
 
   constructor(audioCtx: AudioContext) {
     this.audioCtx = audioCtx;
@@ -96,6 +97,10 @@ class Square implements Instrument {
     this.voiceMap = new Map<Number, Voice>();
     this.params = new Array(16);
     this.params.fill(0.5);
+    this.lfo = init(audioCtx.createOscillator(), self => {
+      self.frequency.value = 12;
+      self.start();
+    });
   }
 
   onKeyDown(note) {
@@ -114,12 +119,16 @@ class Square implements Instrument {
       this.params[note] = value;
       this.voiceMap.forEach(voice => voice.setParam(note, value));
     }
+    if (note == 1) {
+      this.lfo.frequency.value = value * 10;
+    }
   }
 
   play(note, params) {
     const { audioCtx } = this;
     const adsr = new ADSR(params, 4, this.audioCtx);
 
+    const lfoGain = init(audioCtx.createGain(), self => {});
     const mainGain = init(audioCtx.createGain(), self => {
       self.gain.value = 0;
       adsr.scheduleAttack(self.gain, 0.3);
@@ -131,15 +140,21 @@ class Square implements Instrument {
       self.detune.value = 0;
       self.start();
     });
+    const highpass = init(audioCtx.createBiquadFilter(), self => {
+      self.type = "highpass";
+      self.frequency.value = 1000;
+    });
     const filter = init(audioCtx.createBiquadFilter(), self => {
       self.type = "lowpass";
     });
 
     chain(mainOscillator, filter, mainGain, this.output);
+    chain(this.lfo, lfoGain, filter.frequency);
 
     return new Voice()
       .addRelease(mainGain.gain, adsr.release * 0.5, audioCtx)
       .addParam(0, filter.frequency, 0, 5000)
+      .addParam(2, lfoGain.gain, 0, 10000)
       .setParams(params);
   }
 }
