@@ -50,6 +50,29 @@ function sequenceFn(a, b) {
   };
 }
 
+class ADSR {
+  attack: number;
+  decay: number;
+  sustain: number;
+  release: number;
+  context: AudioContext;
+
+  constructor(params, offset, context) {
+    this.attack = params[offset];
+    this.decay = params[offset + 1];
+    this.sustain = params[offset + 2];
+    this.release = params[offset + 3];
+    this.context = context;
+  }
+
+  scheduleAttack(param: AudioParam, value: number) {
+    param.linearRampToValueAtTime(
+      value,
+      this.context.currentTime + this.attack * 0.5
+    );
+  }
+}
+
 class Square implements Instrument {
   audioCtx: AudioContext;
   output: AudioNode;
@@ -61,9 +84,11 @@ class Square implements Instrument {
 
   play(note, params) {
     const { audioCtx } = this;
+    const adsr = new ADSR(params, 4, this.audioCtx);
 
     const mainGain = init(audioCtx.createGain(), self => {
-      self.gain.value = 0.3;
+      self.gain.value = 0;
+      adsr.scheduleAttack(self.gain, 0.3);
     });
     const mainOscillator = init(audioCtx.createOscillator(), self => {
       self.type = "square";
@@ -97,7 +122,7 @@ function connectInstrument(
   instrument: Instrument,
   inputDevice: WebMidi.MIDIInput
 ) {
-  const params = new Array(8);
+  const params = new Array(16);
   params.fill(0.5);
 
   inputDevice.onmidimessage = ({ data }) => {
@@ -107,20 +132,16 @@ function connectInstrument(
       note: data[1],
       velocity: data[2] / 127
     };
-    console.log(message);
     if (message.command === NOTE_DOWN) {
       oscMap.set(message.note, instrument.play(message.note, params));
-      console.log("?", oscMap);
     } else if (message.command === NOTE_UP) {
       const voice = oscMap.get(message.note);
       voice.stop();
       oscMap.delete(message.note);
-      console.log("?", oscMap);
     } else if (message.command === PARAM_SET) {
       console.log("PARAM_SET", message);
       if (message.note < 8) {
         params[message.note] = message.velocity;
-        console.log("!", oscMap);
         oscMap.forEach(voice => voice.setParam(message.note, message.velocity));
       }
     }
