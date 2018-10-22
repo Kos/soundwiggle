@@ -24,6 +24,7 @@ class Voice implements InstrumentVoice {
 
   addRelease(param: AudioParam, time: number, context: AudioContext) {
     this.stop = sequenceFn(this.stop, () => {
+      param.cancelScheduledValues(0);
       param.linearRampToValueAtTime(0, context.currentTime + time);
     });
     return this;
@@ -74,6 +75,13 @@ class ADSR {
       this.context.currentTime + this.attack * 0.5
     );
   }
+
+  scheduleDecay(param: AudioParam, min: number, max: number) {
+    const targetValue = min + (max - min) * this.sustain;
+    const targetTime =
+      this.context.currentTime + this.attack * 0.5 + this.decay * 0.5;
+    param.linearRampToValueAtTime(targetValue, targetTime);
+  }
 }
 
 class Square implements Instrument {
@@ -115,6 +123,7 @@ class Square implements Instrument {
     const mainGain = init(audioCtx.createGain(), self => {
       self.gain.value = 0;
       adsr.scheduleAttack(self.gain, 0.3);
+      adsr.scheduleDecay(self.gain, 0, 0.3);
     });
     const mainOscillator = init(audioCtx.createOscillator(), self => {
       self.type = "square";
@@ -129,7 +138,7 @@ class Square implements Instrument {
     chain(mainOscillator, filter, mainGain, this.output);
 
     return new Voice()
-      .addRelease(mainGain.gain, 0.01, audioCtx)
+      .addRelease(mainGain.gain, adsr.release * 0.5, audioCtx)
       .addParam(0, filter.frequency, 0, 5000)
       .setParams(params);
   }
