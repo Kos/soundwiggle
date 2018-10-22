@@ -7,7 +7,7 @@ type Note = Number;
 
 interface InstrumentVoice {
   stop: () => void;
-  setParam: (channel, value) => void;
+  setParam: (note, value) => void;
 }
 
 interface Instrument {
@@ -37,7 +37,7 @@ class Square implements Instrument {
     });
     const filter = init(audioCtx.createBiquadFilter(), self => {
       self.type = "lowpass";
-      self.frequency.value = params[0] * 5000;
+      self.frequency.value = params[0] * 35000;
     });
 
     chain(mainOscillator, filter, mainGain, this.output);
@@ -52,9 +52,9 @@ class Square implements Instrument {
         mainOscillator.stop(audioCtx.currentTime + releaseTime);
       },
 
-      setParam(channel, value) {
-        console.log("setParam", channel, value);
-        if (channel === 0) {
+      setParam(note, value) {
+        console.log("setParam", note, value);
+        if (note === 0) {
           filter.frequency.value = value * 5000;
         }
       }
@@ -95,12 +95,10 @@ function connectInstrument(
       oscMap.delete(message.note);
       console.log("?", oscMap);
     } else if (message.command === PARAM_SET) {
-      if (message.channel < 8) {
-        params[message.channel] = message.velocity;
+      if (message.note < 8) {
+        params[message.note] = message.velocity;
         console.log("!", oscMap);
-        oscMap.forEach(voice =>
-          voice.setParam(message.channel, message.velocity)
-        );
+        oscMap.forEach(voice => voice.setParam(message.note, message.velocity));
       }
     }
   };
