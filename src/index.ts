@@ -84,6 +84,24 @@ class ADSR {
   }
 }
 
+function loadParams() {
+  const params = new Array(16);
+  params.fill(0.5);
+  let savedParams = localStorage.getItem("params");
+  if (savedParams) {
+    savedParams = JSON.parse(savedParams);
+    params.forEach((element, index) => {
+      if (savedParams[index] !== undefined) {
+        params[index] = savedParams[index];
+      }
+    });
+  }
+  setInterval(function() {
+    localStorage.setItem("params", JSON.stringify(params));
+  }, 100);
+  return params;
+}
+
 class Square implements Instrument {
   audioCtx: AudioContext;
   output: AudioNode;
@@ -95,10 +113,9 @@ class Square implements Instrument {
     this.audioCtx = audioCtx;
     this.output = audioCtx.destination;
     this.voiceMap = new Map<Number, Voice>();
-    this.params = new Array(16);
-    this.params.fill(0.5);
+    this.params = loadParams();
     this.lfo = init(audioCtx.createOscillator(), self => {
-      self.frequency.value = 12;
+      self.frequency.value = Number(this.params[1]) * 10; // HACK 1
       self.start();
     });
   }
@@ -120,7 +137,7 @@ class Square implements Instrument {
       this.voiceMap.forEach(voice => voice.setParam(note, value));
     }
     if (note == 1) {
-      this.lfo.frequency.value = value * 10;
+      this.lfo.frequency.value = value * 10; // HACK 1
     }
   }
 
