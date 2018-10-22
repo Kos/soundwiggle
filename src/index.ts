@@ -4,6 +4,7 @@ function init<T>(obj: T, fn: (arg: T) => void) {
 }
 
 type Note = Number;
+type Params = Array<Number>;
 
 interface InstrumentVoice {
   stop: () => void;
@@ -11,7 +12,42 @@ interface InstrumentVoice {
 }
 
 interface Instrument {
-  play: (note: Note, params: Array<Number>) => InstrumentVoice;
+  play: (note: Note, params: Params) => InstrumentVoice;
+}
+
+class Voice implements InstrumentVoice {
+  stop() {}
+  setParam(note, value) {}
+
+  addRelease(param: AudioParam, time: number, context: AudioContext) {
+    this.stop = sequenceFn(this.stop, () => {
+      param.linearRampToValueAtTime(0, context.currentTime + time);
+    });
+    return this;
+  }
+
+  addParam(note, param: AudioParam, min, max) {
+    this.setParam = sequenceFn(this.setParam, (thisNote, value) => {
+      if (note === thisNote) {
+        param.value = min + (max - min) * value;
+      }
+    });
+    return this;
+  }
+
+  setParams(params: Params) {
+    params.forEach((element, index) => {
+      this.setParam(index, element);
+    });
+    return this;
+  }
+}
+
+function sequenceFn(a, b) {
+  return (...args) => {
+    a(...args);
+    b(...args);
+  };
 }
 
 class Square implements Instrument {
@@ -37,28 +73,14 @@ class Square implements Instrument {
     });
     const filter = init(audioCtx.createBiquadFilter(), self => {
       self.type = "lowpass";
-      self.frequency.value = params[0] * 35000;
     });
 
     chain(mainOscillator, filter, mainGain, this.output);
 
-    return {
-      stop() {
-        const releaseTime = 0.01;
-        mainGain.gain.linearRampToValueAtTime(
-          0,
-          audioCtx.currentTime + releaseTime
-        );
-        mainOscillator.stop(audioCtx.currentTime + releaseTime);
-      },
-
-      setParam(note, value) {
-        console.log("setParam", note, value);
-        if (note === 0) {
-          filter.frequency.value = value * 5000;
-        }
-      }
-    };
+    return new Voice()
+      .addRelease(mainGain.gain, 0.01, audioCtx)
+      .addParam(0, filter.frequency, 0, 5000)
+      .setParams(params);
   }
 }
 
@@ -95,6 +117,7 @@ function connectInstrument(
       oscMap.delete(message.note);
       console.log("?", oscMap);
     } else if (message.command === PARAM_SET) {
+      console.log("PARAM_SET", message);
       if (message.note < 8) {
         params[message.note] = message.velocity;
         console.log("!", oscMap);
