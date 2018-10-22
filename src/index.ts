@@ -4,7 +4,8 @@ function init<T>(obj: T, fn: (arg: T) => void) {
 }
 
 type Note = Number;
-type Params = Array<Number>;
+type Param = Number;
+type Params = Array<Param>;
 
 interface InstrumentVoice {
   stop: () => void;
@@ -12,7 +13,9 @@ interface InstrumentVoice {
 }
 
 interface Instrument {
-  play: (note: Note, params: Params) => InstrumentVoice;
+  onKeyDown(note: Note);
+  onKeyUp(note: Note);
+  onParamSet(param: Param, value: Number);
 }
 
 class Voice implements InstrumentVoice {
@@ -76,10 +79,33 @@ class ADSR {
 class Square implements Instrument {
   audioCtx: AudioContext;
   output: AudioNode;
+  voiceMap: Map<Note, Voice>;
+  params: Params;
 
   constructor(audioCtx: AudioContext) {
     this.audioCtx = audioCtx;
     this.output = audioCtx.destination;
+    this.voiceMap = new Map<Number, Voice>();
+    this.params = new Array(16);
+    this.params.fill(0.5);
+  }
+
+  onKeyDown(note) {
+    const voice = this.play(note, this.params);
+    this.voiceMap.set(note, voice);
+  }
+
+  onKeyUp(note) {
+    const voice = this.voiceMap.get(note);
+    voice.stop();
+    this.voiceMap.delete(note);
+  }
+
+  onParamSet(note, value) {
+    if (note < this.params.length) {
+      this.params[note] = value;
+      this.voiceMap.forEach(voice => voice.setParam(note, value));
+    }
   }
 
   play(note, params) {
@@ -118,13 +144,9 @@ const NOTE_UP = 8;
 const PARAM_SET = 11;
 
 function connectInstrument(
-  oscMap: Map<Number, InstrumentVoice>,
   instrument: Instrument,
   inputDevice: WebMidi.MIDIInput
 ) {
-  const params = new Array(16);
-  params.fill(0.5);
-
   inputDevice.onmidimessage = ({ data }) => {
     const message = {
       command: data[0] >> 4,
@@ -133,17 +155,11 @@ function connectInstrument(
       velocity: data[2] / 127
     };
     if (message.command === NOTE_DOWN) {
-      oscMap.set(message.note, instrument.play(message.note, params));
+      instrument.onKeyDown(message.note);
     } else if (message.command === NOTE_UP) {
-      const voice = oscMap.get(message.note);
-      voice.stop();
-      oscMap.delete(message.note);
+      instrument.onKeyUp(message.note);
     } else if (message.command === PARAM_SET) {
-      console.log("PARAM_SET", message);
-      if (message.note < 8) {
-        params[message.note] = message.velocity;
-        oscMap.forEach(voice => voice.setParam(message.note, message.velocity));
-      }
+      instrument.onParamSet(message.note, message.velocity);
     }
   };
 }
@@ -155,8 +171,6 @@ function chain(...pieces) {
 }
 function main() {
   const audioCtx = new AudioContext();
-  const oscMap = new Map<Number, InstrumentVoice>();
-
   const square = new Square(audioCtx);
   // const comp = init(audioCtx.createDynamicsCompressor(), self => {});
   // square.output = comp;
@@ -165,7 +179,7 @@ function main() {
   navigator.requestMIDIAccess().then(function(access) {
     access.inputs.forEach(input => {
       console.log("Input device:", input);
-      connectInstrument(oscMap, square, input);
+      connectInstrument(square, input);
     });
     access.outputs.forEach(output => {
       console.log("Output device:", output);
