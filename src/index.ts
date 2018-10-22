@@ -71,7 +71,7 @@ const NOTE_UP = 8;
 const PARAM_SET = 11;
 
 function connectInstrument(
-  oscMap: Map<Number, InstrumentVoice>.
+  oscMap: Map<Number, InstrumentVoice>,
   instrument: Instrument,
   inputDevice: WebMidi.MIDIInput
 ) {
